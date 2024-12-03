@@ -1,0 +1,9 @@
+version: '3.8'
+name: render-service
+
+services:
+  redis:
+    image: redis:7.0.5-alpine
+    container_name: render-service-redis
+    ports:
+      - ${REDIS_PORT}:6379

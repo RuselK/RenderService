@@ -1,0 +1,9 @@
+fastapi[standard]
+pydantic-settings
+# bpy
+redis
+aiofiles
+numpy==1.26.4
+docker
+
+pre-commit
