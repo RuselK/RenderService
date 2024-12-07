@@ -72,6 +72,9 @@ async def render_file(job_id: str, redis: Redis = Depends(get_jobs_redis)):
                 )
                 bpy.ops.render.render(write_still=True)
 
+        job.status = Status.RENDERED
+        await JobManager.save(job, redis)
+
     except Exception as e:
         job = await JobManager.get(job_id, redis)
         job.status = Status.FAILED
