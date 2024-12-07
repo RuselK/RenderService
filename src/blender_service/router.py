@@ -79,7 +79,7 @@ async def start_render(
 
     await render_file(job_id, redis)
 
-    # background_tasks.add_task(render_file, job_id, redis)
+    background_tasks.add_task(render_file, job_id, redis)
 
     return job
 
