@@ -55,7 +55,7 @@ async def render_file(job_id: str, redis: Redis = Depends(get_jobs_redis)):
         bpy.context.scene.render.image_settings.file_format = (
             job.render_settings.output_format
         )
-        bpy.context.scene.render.filepath = str(job.render_path / "frame_")
+        bpy.context.scene.render.filepath = str(job.rendered_dir / "frame_")
 
         if job.render_settings.frame_range:
             if isinstance(job.render_settings.frame_range, FrameRange):
