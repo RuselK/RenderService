@@ -55,10 +55,12 @@ async def render_file(job_id: str, redis: Redis = Depends(get_jobs_redis)):
         bpy.context.scene.render.image_settings.file_format = (
             job.render_settings.output_format
         )
-        bpy.context.scene.render.filepath = str(job.rendered_dir / "frame_")
 
         if job.render_settings.frame_range:
             if isinstance(job.render_settings.frame_range, FrameRange):
+                bpy.context.scene.render.filepath = str(
+                    job.rendered_dir / "frame_"
+                )
                 bpy.context.scene.frame_start = (
                     job.render_settings.frame_range.start
                 )
@@ -67,7 +69,11 @@ async def render_file(job_id: str, redis: Redis = Depends(get_jobs_redis)):
                 )
                 bpy.ops.render.render(animation=True)
             elif isinstance(job.render_settings.frame_range, SingleFrame):
-                bpy.context.scene.frame_start = (
+                bpy.context.scene.render.filepath = str(
+                    job.rendered_dir
+                    / f"frame_{job.render_settings.frame_range.frame}.png"
+                )
+                bpy.context.scene.frame_set(
                     job.render_settings.frame_range.frame
                 )
                 bpy.ops.render.render(write_still=True)
