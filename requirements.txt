@@ -1,7 +1,6 @@
+numpy==1.26.4
 fastapi[standard]
 pydantic-settings
-# bpy
+bpy
 redis
 aiofiles
-numpy==1.26.4
-docker
