@@ -20,7 +20,7 @@ from .schemas import (
     JobDB,
     JobManager,
 )
-from .service import render_file
+from .tasks import render_job_task
 
 
 router = APIRouter(prefix="/renders")
@@ -46,21 +46,20 @@ async def upload_file(
         content = await zip_file.read()
         await out_file.write(content)
 
-    await JobManager.save(job, redis)
+    JobManager.save(job, redis)
 
     return {"job_id": job_id}
 
 
 @router.post("/{job_id}/start", response_model=JobRead)
-async def start_render(
+def start_render(
     job_id: str,
     render_settings: RenderSettings,
-    background_tasks: BackgroundTasks,
     redis: Redis = Depends(get_jobs_redis),
 ):
     # TODO: Check if service is busy. If yes, raise 400.
 
-    job = await JobManager.get(job_id, redis)
+    job = JobManager.get(job_id, redis)
 
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -68,16 +67,17 @@ async def start_render(
     if not (config.TEMP_DIR / job_id).exists():
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # if job.status == Status.RENDERING:
-    #     raise HTTPException(
-    # status_code=400, detail="Job is already rendering")
+    if job.status == Status.RENDERING:
+        raise HTTPException(
+            status_code=400, detail="Job is already rendering"
+        )
 
     job.render_settings = render_settings.model_dump(exclude_none=True)
     job.status = Status.RENDERING
 
-    await JobManager.save(job, redis)
+    JobManager.save(job, redis)
 
-    background_tasks.add_task(render_file, job_id, redis)
+    render_job_task.delay(job_id)
 
     return job
 
@@ -86,11 +86,6 @@ async def start_render(
 @router.get("/{job_id}/logs")
 async def render_logs(job_id: str, redis: Redis = Depends(get_jobs_redis)):
     pass
-
-
-# @router.post("/{job_id}/cancel")
-# async def cancel_render(job_id: str):
-#     pass
 
 
 # @router.get("/{job_id}/status")

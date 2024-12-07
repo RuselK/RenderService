@@ -11,11 +11,13 @@ from src.core.redis import get_jobs_redis, RedisHandler
 from pydantic import BaseModel, ConfigDict
 
 
+class ServerStatus(StrEnum):
+    BUSY = "BUSY"
+    IDLE = "IDLE"
+
+
 class OutputFormat(StrEnum):
     PNG = "PNG"
-    # PNG8bitAlpha = "PNG (8 bit + alpha)"
-    # PNG16bit = "PNG (16 bit)"
-    # PNG16bitAlpha = "PNG (16 bit + alpha)"
     JPEG = "JPEG"
 
 
@@ -60,6 +62,7 @@ class JobCreate(JobBase):
     zip_filename: str
     render_settings: Union[RenderSettings, None] = None
     status: Status = Status.PENDING
+    msg: Union[str, None] = None
 
 
 class JobRead(JobCreate):
@@ -92,22 +95,22 @@ class JobDB(JobCreate):
 class JobManager:
 
     @classmethod
-    async def get(
+    def get(
         cls, job_id: str, redis: Redis = Depends(get_jobs_redis)
     ) -> JobDB:
-        job = await RedisHandler.get(job_id, redis)
+        job = RedisHandler.get(job_id, redis)
         if job:
             return JobDB.model_validate_json(job)
         return None
 
     @classmethod
-    async def save(
+    def save(
         cls, job: JobDB, redis: Redis = Depends(get_jobs_redis)
     ) -> None:
-        await RedisHandler.save(job.job_id, job.model_dump_json(), redis)
+        RedisHandler.save(job.job_id, job.model_dump_json(), redis)
 
     @classmethod
-    async def delete(
+    def delete(
         cls, job_id: str, redis: Redis = Depends(get_jobs_redis)
     ) -> None:
-        await RedisHandler.delete(job_id, redis)
+        RedisHandler.delete(job_id, redis)
