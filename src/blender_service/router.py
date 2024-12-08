@@ -5,13 +5,15 @@ from fastapi import (
     UploadFile,
     HTTPException,
     Depends,
-    BackgroundTasks,
 )
+from fastapi.responses import StreamingResponse
 import aiofiles
 from redis.asyncio import Redis
 
 from src.core.config import config
 from src.core.redis import get_jobs_redis
+from src.core.celery import celery
+from src.core.utils import stream_logs
 from .schemas import (
     JobBase,
     JobRead,
@@ -21,7 +23,6 @@ from .schemas import (
     JobManager,
 )
 from .tasks import render_job_task
-
 
 router = APIRouter(prefix="/renders")
 
@@ -57,7 +58,13 @@ def start_render(
     render_settings: RenderSettings,
     redis: Redis = Depends(get_jobs_redis),
 ):
-    # TODO: Check if service is busy. If yes, raise 400.
+    inspector = celery.control.inspect()
+    active_tasks = inspector.active()
+    if active_tasks and any(active_tasks.values()):
+        raise HTTPException(
+            status_code=400,
+            detail="Service is busy. Try later.",
+        )
 
     job = JobManager.get(job_id, redis)
 
@@ -72,7 +79,7 @@ def start_render(
             status_code=400, detail="Job is already rendering"
         )
 
-    job.render_settings = render_settings.model_dump(exclude_none=True)
+    job.render_settings = render_settings
     job.status = Status.RENDERING
 
     JobManager.save(job, redis)
@@ -82,15 +89,38 @@ def start_render(
     return job
 
 
-# TODO implement long polling for render logs
 @router.get("/{job_id}/logs")
 async def render_logs(job_id: str, redis: Redis = Depends(get_jobs_redis)):
-    pass
+    job = JobManager.get(job_id, redis)
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    logs_file_path = config.LOGS_DIR / f"{job.job_id}.log"
+
+    if not logs_file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Log file not found. Try later.",
+        )
+
+    return StreamingResponse(
+        stream_logs(logs_file_path),
+        media_type="text/plain",
+    )
 
 
-# @router.get("/{job_id}/status")
-# async def get_render_status(job_id: str):
-#     pass
+@router.get("/{job_id}/status", response_model=JobRead)
+async def get_render_status(
+    job_id: str,
+    redis: Redis = Depends(get_jobs_redis),
+):
+    job = JobManager.get(job_id, redis)
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    return job
 
 
 # @router.get("/{job_id}/result")

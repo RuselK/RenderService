@@ -62,7 +62,6 @@ class JobCreate(JobBase):
     zip_filename: str
     render_settings: Union[RenderSettings, None] = None
     status: Status = Status.PENDING
-    msg: Union[str, None] = None
 
 
 class JobRead(JobCreate):

@@ -44,7 +44,7 @@ def setup_logger(
     log_format = "%(asctime)s %(levelname)s %(message)s"
 
     # File handler with rotation
-    if filename is not None:
+    if filename is not None and not logger.handlers:
         log_path = config.LOGS_DIR / filename
         file_handler = RotatingFileHandler(
             log_path,
@@ -56,7 +56,7 @@ def setup_logger(
         logger.addHandler(file_handler)
 
     # Stream handler for console output
-    if stdout:
+    if stdout and not logger.handlers:
         color_formatter = ColoredFormatter(log_format, datefmt)
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(color_formatter)
