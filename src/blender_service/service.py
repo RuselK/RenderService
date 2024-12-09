@@ -7,26 +7,35 @@ from bpy.app.handlers import persistent
 
 from src.core.redis import get_jobs_redis
 from src.core.logger import setup_logger
+from .exceptions import JobNotFoundError
 from .schemas import (
     Status,
     JobManager,
     FrameRange,
     SingleFrame,
-    JobDB,
     BlenderEngine,
     OutputFormat,
 )
 
 
+service_logger = setup_logger(
+    name="blender_service",
+    filename="blender_service.log",
+)
+
+
 def unpack_zip(zip_file_path: Path, extracted_dir: Path):
+    service_logger.info(f"Unpack Zip: {zip_file_path}")
     if not zip_file_path.exists():
         raise FileNotFoundError(f"Zip file not found: {zip_file_path}")
 
     with zipfile.ZipFile(zip_file_path, "r") as zip:
         zip.extractall(extracted_dir)
+    service_logger.info(f"Unpack Zip Completed: {zip_file_path}")
 
 
 def get_blender_file_path(extracted_dir: Path) -> Path:
+    service_logger.info(f"Get Blender File Path: {extracted_dir}")
     blender_files = []
 
     for file in extracted_dir.iterdir():
@@ -34,13 +43,12 @@ def get_blender_file_path(extracted_dir: Path) -> Path:
             blender_files.append(file)
 
     if not blender_files:
-        raise FileNotFoundError(
-            f"Blender file not found in {extracted_dir}"
-        )
+        raise FileNotFoundError(f"Blender file not found in {extracted_dir}")
+
     if len(blender_files) > 1:
-        raise ValueError(
-            f"Multiple Blender files found in {extracted_dir}"
-        )
+        raise ValueError(f"Multiple Blender files found in {extracted_dir}")
+
+    service_logger.info(f"Blender File Path: {blender_files[0]}")
     return extracted_dir / blender_files[0]
 
 
@@ -54,6 +62,8 @@ def render_blender_file(
     rendered_dir: Path,
     logger: logging.Logger | None = None,
 ):
+    filename = blender_file_path.split("/")[-1]
+
     @persistent
     def render_init_handler(scene):
         if logger:
@@ -62,29 +72,39 @@ def render_blender_file(
             elif isinstance(frame_range, SingleFrame):
                 frames = f"frame: {frame_range.frame}"
 
-            logger.info(
-                f"Start Render: {blender_file_path.split('/')[-1]}, "
+            msg = (
+                f"Start Render: {filename}, "
                 f"resolution: {resolution_x}x{resolution_y}, "
                 f"engine: {engine}, "
                 f"output_format: {output_format}, "
                 f"{frames}"
             )
+            service_logger.info(msg)
+
+            logger.info(msg)
 
     @persistent
     def render_complete_handler(scene):
         if logger:
-            logger.info(
-                f"Render Completed: {blender_file_path.split('/')[-1]}"
-            )
+            msg = f"Render Completed: {filename}"
+            service_logger.info(msg)
+            logger.info(msg)
 
     @persistent
     def render_write_handler(scene):
         if logger:
-            logger.info(f"Write Frame: {scene.frame_current}")
+            msg = f"Write Frame: {scene.frame_current}"
+            service_logger.info(msg + f" filename: {filename}")
+            logger.info(msg)
 
-    bpy.app.handlers.render_init.append(render_init_handler)
-    bpy.app.handlers.render_complete.append(render_complete_handler)
-    bpy.app.handlers.render_write.append(render_write_handler)
+    if render_init_handler not in bpy.app.handlers.render_init:
+        bpy.app.handlers.render_init.append(render_init_handler)
+
+    if render_complete_handler not in bpy.app.handlers.render_complete:
+        bpy.app.handlers.render_complete.append(render_complete_handler)
+
+    if render_write_handler not in bpy.app.handlers.render_write:
+        bpy.app.handlers.render_write.append(render_write_handler)
 
     bpy.ops.wm.open_mainfile(filepath=blender_file_path)
 
@@ -111,10 +131,10 @@ def render_blender_file(
 
 
 def render_job(job_id: str):
-    # TODO: Logger is dublicating logs. Fix it.
     logger = setup_logger(
         name=job_id,
         filename=f"{job_id}.log",
+        log_dir="render_jobs"
     )
     try:
         redis = get_jobs_redis()
@@ -123,7 +143,7 @@ def render_job(job_id: str):
         job.init_dirs()
 
         if not job:
-            raise FileNotFoundError(f"Job not found: {job_id}")
+            raise JobNotFoundError(f"Job not found: {job_id}")
 
         unpack_zip(job.zip_file_path, job.extracted_dir)
 
@@ -143,10 +163,15 @@ def render_job(job_id: str):
         job.status = Status.COMPLETED
         JobManager.save(job, redis)
 
-    except Exception as exc:
-        logger.error(f"Render Failed: {exc}")
+    except JobNotFoundError as exc:
 
+        raise exc
+
+    except Exception as exc:
         redis = get_jobs_redis()
         job = JobManager.get(job_id, redis)
         job.status = Status.FAILED
         JobManager.save(job, redis)
+
+        service_logger.error(f"Render Failed: {exc}, job_id: {job_id}")
+        logger.error("Render Failed.")

@@ -24,6 +24,7 @@ from .schemas import (
 )
 from .tasks import render_job_task
 
+
 router = APIRouter(prefix="/renders")
 
 
@@ -96,7 +97,8 @@ async def render_logs(job_id: str, redis: Redis = Depends(get_jobs_redis)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    logs_file_path = config.LOGS_DIR / f"{job.job_id}.log"
+    log_dir = config.LOGS_DIR / "render_jobs"
+    logs_file_path = log_dir / f"{job.job_id}.log"
 
     if not logs_file_path.exists():
         raise HTTPException(
@@ -123,6 +125,6 @@ async def get_render_status(
     return job
 
 
-# @router.get("/{job_id}/result")
-# async def get_render_result(job_id: str):
-#     pass
+@router.get("/{job_id}/result")
+async def get_render_result(job_id: str):
+    pass

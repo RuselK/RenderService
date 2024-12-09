@@ -1,5 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from .config import config
 
@@ -34,6 +35,7 @@ def setup_logger(
     level: int = logging.INFO,
     stdout: bool = True,
     filename: str | None = None,
+    log_dir: Path | str | None = None,
     propagate: bool = False,
     datefmt: str = "%Y-%m-%d %H:%M:%S",
 ):
@@ -46,6 +48,11 @@ def setup_logger(
     # File handler with rotation
     if filename is not None and not logger.handlers:
         log_path = config.LOGS_DIR / filename
+        if log_dir is not None:
+            log_dir = config.LOGS_DIR / log_dir
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_path = log_dir / filename
+
         file_handler = RotatingFileHandler(
             log_path,
             maxBytes=5 * 1024 * 1024,

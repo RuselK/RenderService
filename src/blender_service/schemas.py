@@ -39,7 +39,7 @@ class RenderSettings(BaseModel):
     frame_range: Union[FrameRange, SingleFrame]
     resolution_x: int = 1920
     resolution_y: int = 1080
-    camera_to_render: Union[str, None] = None
+    # camera_to_render: Union[str, None] = None # TODO: Add camera to render
     output_format: OutputFormat = OutputFormat.PNG
     engine: BlenderEngine = BlenderEngine.EEVEE
 
