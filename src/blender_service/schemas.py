@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Union
@@ -9,6 +10,12 @@ from src.core.config import config
 from src.core.redis import get_jobs_redis, RedisHandler
 
 from pydantic import BaseModel, ConfigDict
+
+
+class RenderResult(BaseModel):
+    filename: str
+    path: str
+    timestamp: datetime
 
 
 class ServerStatus(StrEnum):
@@ -50,6 +57,7 @@ class Status(StrEnum):
     PENDING = "PENDING"
     RENDERING = "RENDERING"
     COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
     FAILED = "FAILED"
 
 
@@ -61,6 +69,7 @@ class JobBase(BaseModel):
 class JobCreate(JobBase):
     zip_filename: str
     render_settings: Union[RenderSettings, None] = None
+    task_id: Union[str, None] = None
     status: Status = Status.PENDING
 
 
@@ -94,18 +103,14 @@ class JobDB(JobCreate):
 class JobManager:
 
     @classmethod
-    def get(
-        cls, job_id: str, redis: Redis = Depends(get_jobs_redis)
-    ) -> JobDB:
+    def get(cls, job_id: str, redis: Redis = Depends(get_jobs_redis)) -> JobDB:
         job = RedisHandler.get(job_id, redis)
         if job:
             return JobDB.model_validate_json(job)
         return None
 
     @classmethod
-    def save(
-        cls, job: JobDB, redis: Redis = Depends(get_jobs_redis)
-    ) -> None:
+    def save(cls, job: JobDB, redis: Redis = Depends(get_jobs_redis)) -> None:
         RedisHandler.save(job.job_id, job.model_dump_json(), redis)
 
     @classmethod

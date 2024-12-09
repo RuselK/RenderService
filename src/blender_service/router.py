@@ -3,8 +3,8 @@ from uuid import uuid4
 from fastapi import (
     APIRouter,
     UploadFile,
-    HTTPException,
     Depends,
+    status,
 )
 from fastapi.responses import StreamingResponse
 import aiofiles
@@ -13,7 +13,8 @@ from redis.asyncio import Redis
 from src.core.config import config
 from src.core.redis import get_jobs_redis
 from src.core.celery import celery
-from src.core.utils import stream_logs
+from src.core.utils import stream_logs, list_directory_files
+from src.core.exceptions import BadRequestError, NotFoundError
 from .schemas import (
     JobBase,
     JobRead,
@@ -21,7 +22,10 @@ from .schemas import (
     Status,
     JobDB,
     JobManager,
+    RenderResult,
 )
+from .dependencies import get_job_or_404
+from .constants import JobErrorMessages
 from .tasks import render_job_task
 
 
@@ -34,10 +38,7 @@ async def upload_file(
     redis: Redis = Depends(get_jobs_redis),
 ):
     if not zip_file.filename.endswith(".zip"):
-        raise HTTPException(
-            status_code=400,
-            detail="Zip file is required",
-        )
+        raise BadRequestError(JobErrorMessages.ZIP_FILE_REQUIRED.value)
 
     job_id = str(uuid4())
 
@@ -62,49 +63,48 @@ def start_render(
     inspector = celery.control.inspect()
     active_tasks = inspector.active()
     if active_tasks and any(active_tasks.values()):
-        raise HTTPException(
-            status_code=400,
-            detail="Service is busy. Try later.",
-        )
+        raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
 
     job = JobManager.get(job_id, redis)
 
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise BadRequestError(JobErrorMessages.JOB_NOT_FOUND.value)
 
     if not (config.TEMP_DIR / job_id).exists():
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise BadRequestError(JobErrorMessages.JOB_NOT_FOUND.value)
 
     if job.status == Status.RENDERING:
-        raise HTTPException(
-            status_code=400, detail="Job is already rendering"
-        )
+        raise BadRequestError(JobErrorMessages.JOB_ALREADY_RENDERING.value)
+
+    task = render_job_task.delay(job_id)
 
     job.render_settings = render_settings
     job.status = Status.RENDERING
+    job.task_id = task.id
 
     JobManager.save(job, redis)
-
-    render_job_task.delay(job_id)
 
     return job
 
 
-@router.get("/{job_id}/logs")
-async def render_logs(job_id: str, redis: Redis = Depends(get_jobs_redis)):
-    job = JobManager.get(job_id, redis)
+@router.post("/{job_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_render(
+    job: JobDB = Depends(get_job_or_404),
+    redis: Redis = Depends(get_jobs_redis),
+):
+    celery.control.revoke(job.task_id, terminate=True)
+    job.status = Status.CANCELLED
+    JobManager.save(job, redis)
 
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+
+@router.get("/{job_id}/logs")
+async def render_logs(job: JobDB = Depends(get_job_or_404)):
 
     log_dir = config.LOGS_DIR / "render_jobs"
     logs_file_path = log_dir / f"{job.job_id}.log"
 
     if not logs_file_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="Log file not found. Try later.",
-        )
+        raise NotFoundError(JobErrorMessages.LOG_FILE_NOT_FOUND.value)
 
     return StreamingResponse(
         stream_logs(logs_file_path),
@@ -113,18 +113,10 @@ async def render_logs(job_id: str, redis: Redis = Depends(get_jobs_redis)):
 
 
 @router.get("/{job_id}/status", response_model=JobRead)
-async def get_render_status(
-    job_id: str,
-    redis: Redis = Depends(get_jobs_redis),
-):
-    job = JobManager.get(job_id, redis)
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
+async def get_render_status(job: JobDB = Depends(get_job_or_404)):
     return job
 
 
-@router.get("/{job_id}/result")
-async def get_render_result(job_id: str):
-    pass
+@router.get("/{job_id}/result", response_model=list[RenderResult])
+async def get_render_result(job: JobDB = Depends(get_job_or_404)):
+    return await list_directory_files(job.rendered_dir, job.job_id)

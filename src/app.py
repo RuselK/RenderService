@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from src.core.config import config
 from src.blender_service.router import router as blender_router
@@ -21,3 +22,5 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+
+app.mount("/media", StaticFiles(directory=config.TEMP_DIR), name="media")

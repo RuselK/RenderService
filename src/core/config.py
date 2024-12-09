@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     TEMP_DIR: Path = BASE_DIR / "temp"
     TEMP_DIR.mkdir(exist_ok=True)
 
+    # Media
+    MEDIA_URL: str = "/media"
+
     # Cors
     CORS_ORIGINS: list[str] = []
     CORS_METHODS: list[str] = []

@@ -97,14 +97,13 @@ def render_blender_file(
             service_logger.info(msg + f" filename: {filename}")
             logger.info(msg)
 
-    if render_init_handler not in bpy.app.handlers.render_init:
-        bpy.app.handlers.render_init.append(render_init_handler)
+    bpy.app.handlers.render_init.clear()
+    bpy.app.handlers.render_complete.clear()
+    bpy.app.handlers.render_write.clear()
 
-    if render_complete_handler not in bpy.app.handlers.render_complete:
-        bpy.app.handlers.render_complete.append(render_complete_handler)
-
-    if render_write_handler not in bpy.app.handlers.render_write:
-        bpy.app.handlers.render_write.append(render_write_handler)
+    bpy.app.handlers.render_init.append(render_init_handler)
+    bpy.app.handlers.render_complete.append(render_complete_handler)
+    bpy.app.handlers.render_write.append(render_write_handler)
 
     bpy.ops.wm.open_mainfile(filepath=blender_file_path)
 
@@ -132,20 +131,20 @@ def render_blender_file(
 
 def render_job(job_id: str):
     logger = setup_logger(
-        name=job_id,
-        filename=f"{job_id}.log",
-        log_dir="render_jobs"
+        name=job_id, filename=f"{job_id}.log", log_dir="render_jobs"
     )
     try:
         redis = get_jobs_redis()
         job = JobManager.get(job_id, redis)
 
-        job.init_dirs()
-
         if not job:
             raise JobNotFoundError(f"Job not found: {job_id}")
 
-        unpack_zip(job.zip_file_path, job.extracted_dir)
+        if not job.extracted_dir.exists() and not job.rendered_dir.exists():
+            job.init_dirs()
+
+        if not any(job.extracted_dir.iterdir()):
+            unpack_zip(job.zip_file_path, job.extracted_dir)
 
         blender_file_path = get_blender_file_path(job.extracted_dir)
 
@@ -161,16 +160,16 @@ def render_job(job_id: str):
         )
 
         job.status = Status.COMPLETED
+        job.task_id = None
         JobManager.save(job, redis)
 
     except JobNotFoundError as exc:
-
         raise exc
-
     except Exception as exc:
         redis = get_jobs_redis()
         job = JobManager.get(job_id, redis)
         job.status = Status.FAILED
+        job.task_id = None
         JobManager.save(job, redis)
 
         service_logger.error(f"Render Failed: {exc}, job_id: {job_id}")
