@@ -97,13 +97,22 @@ def render_blender_file(
             service_logger.info(msg + f" filename: {filename}")
             logger.info(msg)
 
+    @persistent
+    def render_stats_handler(arg):
+        if logger:
+            msg = f"Render Stats: {arg}"
+            service_logger.info(msg)
+            logger.info(msg)
+
     bpy.app.handlers.render_init.clear()
     bpy.app.handlers.render_complete.clear()
     bpy.app.handlers.render_write.clear()
+    bpy.app.handlers.render_stats.clear()
 
     bpy.app.handlers.render_init.append(render_init_handler)
     bpy.app.handlers.render_complete.append(render_complete_handler)
     bpy.app.handlers.render_write.append(render_write_handler)
+    bpy.app.handlers.render_stats.append(render_stats_handler)
 
     bpy.ops.wm.open_mainfile(filepath=blender_file_path)
 
