@@ -92,6 +92,9 @@ async def cancel_render(
     job: JobDB = Depends(get_job_or_404),
     redis: Redis = Depends(get_jobs_redis),
 ):
+    if not job.task_id:
+        raise BadRequestError(JobErrorMessages.JOB_NOT_RENDERING.value)
+
     celery.control.revoke(job.task_id, terminate=True)
     job.status = Status.CANCELLED
     JobManager.save(job, redis)

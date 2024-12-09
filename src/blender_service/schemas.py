@@ -18,11 +18,6 @@ class RenderResult(BaseModel):
     timestamp: datetime
 
 
-class ServerStatus(StrEnum):
-    BUSY = "BUSY"
-    IDLE = "IDLE"
-
-
 class OutputFormat(StrEnum):
     PNG = "PNG"
     JPEG = "JPEG"
