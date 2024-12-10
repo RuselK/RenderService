@@ -4,6 +4,5 @@ pydantic-settings
 bpy
 redis
 aiofiles
-celery
 
 pre-commit

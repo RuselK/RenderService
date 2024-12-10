@@ -64,7 +64,6 @@ class JobBase(BaseModel):
 class JobCreate(JobBase):
     zip_filename: str
     render_settings: Union[RenderSettings, None] = None
-    task_id: Union[str, None] = None
     status: Status = Status.PENDING
 
 

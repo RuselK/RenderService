@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -6,7 +8,14 @@ from src.core.config import config
 from src.blender_service.router import router as blender_router
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.active_process = None
+    yield
+    app.state.active_process = None
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Routes
 api_router = APIRouter(prefix="/api")

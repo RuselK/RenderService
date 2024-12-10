@@ -2,6 +2,8 @@ import zipfile
 from pathlib import Path
 import subprocess
 
+from fastapi import Request
+
 from src.core.redis import get_jobs_redis
 from src.core.logger import setup_logger
 from .exceptions import JobNotFoundError
@@ -47,12 +49,12 @@ def get_blender_file_path(extracted_dir: Path) -> Path:
     return extracted_dir / blender_files[0]
 
 
-def render_job(job_id: str):
+def render_job(job_id: str, request: Request):
     logger = setup_logger(
         name=job_id, filename=f"{job_id}.log", log_dir="render_jobs"
     )
+    redis = get_jobs_redis()
     try:
-        redis = get_jobs_redis()
         job = JobManager.get(job_id, redis)
 
         if not job:
@@ -100,20 +102,24 @@ def render_job(job_id: str):
                 str(job.rendered_dir),
             ],
         )
+        request.app.state.active_process = process
         process.wait()
 
+        job = JobManager.get(job_id, redis)
+        if job.status == Status.CANCELLED:
+            service_logger.info(f"Render Job Cancelled: {job_id}")
+            logger.info("Render Job Cancelled.")
+            return
+
         service_logger.info(f"Update Job Status: {job_id}")
-
         job.status = Status.COMPLETED
-        job.task_id = None
+        request.app.state.active_process = None
         JobManager.save(job, redis)
-
         service_logger.info(f"Render Job Completed: {job_id}")
 
     except JobNotFoundError as exc:
         raise exc
     except Exception as exc:
-        redis = get_jobs_redis()
         job = JobManager.get(job_id, redis)
         job.status = Status.FAILED
         job.task_id = None

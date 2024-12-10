@@ -1,6 +1,13 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, UploadFile, Depends, status, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    Depends,
+    status,
+    BackgroundTasks,
+    Request,
+)
 from fastapi.responses import StreamingResponse
 import aiofiles
 from redis.asyncio import Redis
@@ -53,39 +60,45 @@ def start_render(
     job_id: str,
     render_settings: RenderSettings,
     background_tasks: BackgroundTasks,
+    request: Request,
     redis: Redis = Depends(get_jobs_redis),
 ):
+    if request.app.state.active_process is not None:
+        raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
+
     job = JobManager.get(job_id, redis)
 
-    if not job:
+    if not job or not (config.TEMP_DIR / job_id).exists():
         raise BadRequestError(JobErrorMessages.JOB_NOT_FOUND.value)
 
-    if not (config.TEMP_DIR / job_id).exists():
-        raise BadRequestError(JobErrorMessages.JOB_NOT_FOUND.value)
-
-    # TODO: Temporaly disable this check
-    # if job.status == Status.RENDERING:
-    #     raise BadRequestError(JobErrorMessages.JOB_ALREADY_RENDERING.value)
+    if job.status == Status.RENDERING:
+        raise BadRequestError(JobErrorMessages.JOB_ALREADY_RENDERING.value)
 
     job.render_settings = render_settings
     job.status = Status.RENDERING
 
     JobManager.save(job, redis)
 
-    background_tasks.add_task(render_job, job_id)
+    background_tasks.add_task(render_job, job_id, request)
     return job
 
 
 @router.post("/{job_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_render(
+    request: Request,
     job: JobDB = Depends(get_job_or_404),
     redis: Redis = Depends(get_jobs_redis),
 ):
-    if not job.task_id:
+    active_process = request.app.state.active_process
+    if job.status == Status.RENDERING:
+        job.status = Status.CANCELLED
+        JobManager.save(job, redis)
+
+    if active_process is None:
         raise BadRequestError(JobErrorMessages.JOB_NOT_RENDERING.value)
 
-    job.status = Status.CANCELLED
-    JobManager.save(job, redis)
+    active_process.kill()
+    request.app.state.active_process = None
 
 
 @router.get("/{job_id}/logs")
