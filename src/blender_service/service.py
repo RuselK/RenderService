@@ -1,6 +1,7 @@
 import zipfile
 from pathlib import Path
 import logging
+import subprocess
 
 import bpy
 from bpy.app.handlers import persistent
@@ -157,15 +158,43 @@ def render_job(job_id: str):
 
         blender_file_path = get_blender_file_path(job.extracted_dir)
 
-        render_blender_file(
-            blender_file_path=str(blender_file_path),
-            resolution_x=job.render_settings.resolution_x,
-            resolution_y=job.render_settings.resolution_y,
-            engine=job.render_settings.engine,
-            output_format=job.render_settings.output_format,
-            frame_range=job.render_settings.frame_range,
-            rendered_dir=job.rendered_dir,
-            logger=logger,
+        # render_blender_file(
+        #     blender_file_path=str(blender_file_path),
+        #     resolution_x=job.render_settings.resolution_x,
+        #     resolution_y=job.render_settings.resolution_y,
+        #     engine=job.render_settings.engine,
+        #     output_format=job.render_settings.output_format,
+        #     frame_range=job.render_settings.frame_range,
+        #     rendered_dir=job.rendered_dir,
+        #     logger=logger,
+        # )
+
+        python_script = (
+            f"import bpy; "
+            f"bpy.ops.wm.open_mainfile(filepath='{blender_file_path}'); "
+            f"bpy.context.scene.render.resolution_x = {job.render_settings.resolution_x}; "  # noqa: E501
+            f"bpy.context.scene.render.resolution_y = {job.render_settings.resolution_y}; "  # noqa: E501
+            # f"bpy.context.scene.render.engine = {job.render_settings.engine.value}; "  # noqa: E501
+            f"bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'; "
+            f"bpy.context.scene.render.image_settings.file_format = '{job.render_settings.output_format.value}'; "  # noqa: E501
+        )
+        if isinstance(job.render_settings.frame_range, FrameRange):
+            python_script += (
+                f"bpy.context.scene.render.filepath = '{job.rendered_dir / 'frame_'}'; "  # noqa: E501
+                f"bpy.context.scene.frame_start = {job.render_settings.frame_range.start}; "  # noqa: E501
+                f"bpy.context.scene.frame_end = {job.render_settings.frame_range.end}; "  # noqa: E501
+                f"bpy.ops.render.render(animation=True); "
+            )
+        elif isinstance(job.render_settings.frame_range, SingleFrame):
+            python_script += (
+                f"bpy.context.scene.render.filepath = '{job.rendered_dir / f'frame_{job.render_settings.frame_range.frame}.png'}'; "  # noqa: E501
+                f"bpy.context.scene.frame_set({job.render_settings.frame_range.frame}); "  # noqa: E501
+                f"bpy.ops.render.render(write_still=True); "
+            )
+
+        subprocess.run(
+            ["python", "-c", python_script],
+            check=True,
         )
 
         service_logger.info(f"Update Job Status: {job_id}")

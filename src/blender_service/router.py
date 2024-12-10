@@ -21,7 +21,7 @@ from .schemas import (
 )
 from .dependencies import get_job_or_404
 from .constants import JobErrorMessages
-from .tasks import render_job_task
+from .service import render_job
 
 
 router = APIRouter(prefix="/renders")
@@ -55,11 +55,6 @@ def start_render(
     render_settings: RenderSettings,
     redis: Redis = Depends(get_jobs_redis),
 ):
-    inspector = celery.control.inspect()
-    active_tasks = inspector.active()
-    if active_tasks and any(active_tasks.values()):
-        raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
-
     job = JobManager.get(job_id, redis)
 
     if not job:
@@ -68,16 +63,16 @@ def start_render(
     if not (config.TEMP_DIR / job_id).exists():
         raise BadRequestError(JobErrorMessages.JOB_NOT_FOUND.value)
 
-    if job.status == Status.RENDERING:
-        raise BadRequestError(JobErrorMessages.JOB_ALREADY_RENDERING.value)
-
-    task = render_job_task.delay(job_id)
+    # TODO: Temporaly disable this check
+    # if job.status == Status.RENDERING:
+    #     raise BadRequestError(JobErrorMessages.JOB_ALREADY_RENDERING.value)
 
     job.render_settings = render_settings
     job.status = Status.RENDERING
-    job.task_id = task.id
 
     JobManager.save(job, redis)
+
+    render_job(job_id)
 
     return job
 
