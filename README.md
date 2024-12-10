@@ -20,6 +20,7 @@ make run
 
 ## TODO
 - [ ] Add support to render specific camera in the scene.
+- [ ] Write tests.
 
 ## Requirements
 - Python <= 3.11
