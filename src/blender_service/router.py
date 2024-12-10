@@ -1,13 +1,12 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, UploadFile, Depends, status
+from fastapi import APIRouter, UploadFile, Depends, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 import aiofiles
 from redis.asyncio import Redis
 
 from src.core.config import config
 from src.core.redis import get_jobs_redis
-from src.core.celery import celery
 from src.core.utils import stream_logs, list_directory_files
 from src.core.exceptions import BadRequestError, NotFoundError
 from .schemas import (
@@ -53,6 +52,7 @@ async def upload_file(
 def start_render(
     job_id: str,
     render_settings: RenderSettings,
+    background_tasks: BackgroundTasks,
     redis: Redis = Depends(get_jobs_redis),
 ):
     job = JobManager.get(job_id, redis)
@@ -72,7 +72,7 @@ def start_render(
 
     JobManager.save(job, redis)
 
-    render_job(job_id)
+    background_tasks.add_task(render_job, job_id)
 
     return job
 
@@ -85,7 +85,6 @@ async def cancel_render(
     if not job.task_id:
         raise BadRequestError(JobErrorMessages.JOB_NOT_RENDERING.value)
 
-    celery.control.revoke(job.task_id, terminate=True)
     job.status = Status.CANCELLED
     JobManager.save(job, redis)
 
