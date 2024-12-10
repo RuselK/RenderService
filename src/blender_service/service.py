@@ -75,10 +75,6 @@ def render_job(job_id: str, request: Request):
             )
         elif isinstance(job.render_settings.frame_range, SingleFrame):
             frame_range = job.render_settings.frame_range.frame
-        else:
-            raise ValueError(
-                f"Invalid frame range: {job.render_settings.frame_range}"
-            )
 
         process = subprocess.Popen(
             [
@@ -117,8 +113,8 @@ def render_job(job_id: str, request: Request):
         JobManager.save(job, redis)
         service_logger.info(f"Render Job Completed: {job_id}")
 
-    except JobNotFoundError as exc:
-        raise exc
+    except JobNotFoundError:
+        service_logger.error(f"Job not found: {job_id}")
     except Exception as exc:
         job = JobManager.get(job_id, redis)
         job.status = Status.FAILED

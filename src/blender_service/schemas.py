@@ -1,3 +1,4 @@
+from uuid import uuid4
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
@@ -5,17 +6,10 @@ from typing import Union
 
 from fastapi import Depends
 from redis.asyncio import Redis
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.core.config import config
 from src.core.redis import get_jobs_redis, RedisHandler
-
-from pydantic import BaseModel, ConfigDict
-
-
-class RenderResult(BaseModel):
-    filename: str
-    path: str
-    timestamp: datetime
 
 
 class OutputFormat(StrEnum):
@@ -26,6 +20,20 @@ class OutputFormat(StrEnum):
 class BlenderEngine(StrEnum):
     CYCLES = "CYCLES"
     EEVEE = "BLENDER_EEVEE_NEXT"
+
+
+class Status(StrEnum):
+    PENDING = "PENDING"
+    RENDERING = "RENDERING"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+
+
+class RenderResult(BaseModel):
+    filename: str
+    path: str
+    timestamp: datetime
 
 
 class SingleFrame(BaseModel):
@@ -48,16 +56,8 @@ class RenderSettings(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class Status(StrEnum):
-    PENDING = "PENDING"
-    RENDERING = "RENDERING"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
-
-
 class JobBase(BaseModel):
-    job_id: str
+    job_id: str = Field(default_factory=lambda: str(uuid4()))
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -95,7 +95,6 @@ class JobDB(JobCreate):
 
 
 class JobManager:
-
     @classmethod
     def get(cls, job_id: str, redis: Redis = Depends(get_jobs_redis)) -> JobDB:
         job = RedisHandler.get(job_id, redis)

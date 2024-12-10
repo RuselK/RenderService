@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 from fastapi import (
     APIRouter,
     UploadFile,
@@ -30,7 +28,7 @@ from .constants import JobErrorMessages
 from .service import render_job
 
 
-router = APIRouter(prefix="/renders")
+router = APIRouter(prefix="/renders", tags=["renders"])
 
 
 @router.post("/upload", response_model=JobBase)
@@ -38,12 +36,13 @@ async def upload_file(
     zip_file: UploadFile,
     redis: Redis = Depends(get_jobs_redis),
 ):
-    if not zip_file.filename.endswith(".zip"):
+    if zip_file.content_type not in [
+        "application/zip",
+        "application/x-zip-compressed",
+    ] or not zip_file.filename.endswith(".zip"):
         raise BadRequestError(JobErrorMessages.ZIP_FILE_REQUIRED.value)
 
-    job_id = str(uuid4())
-
-    job = JobDB(job_id=job_id, zip_filename=zip_file.filename)
+    job = JobDB(zip_filename=zip_file.filename)
     job.job_path.mkdir(parents=True, exist_ok=True)
 
     async with aiofiles.open(job.zip_file_path, "wb") as out_file:
@@ -52,23 +51,21 @@ async def upload_file(
 
     JobManager.save(job, redis)
 
-    return {"job_id": job_id}
+    return job
 
 
 @router.post("/{job_id}/start", response_model=JobRead)
 def start_render(
-    job_id: str,
     render_settings: RenderSettings,
     background_tasks: BackgroundTasks,
     request: Request,
+    job: JobDB = Depends(get_job_or_404),
     redis: Redis = Depends(get_jobs_redis),
 ):
     if request.app.state.active_process is not None:
         raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
 
-    job = JobManager.get(job_id, redis)
-
-    if not job or not (config.TEMP_DIR / job_id).exists():
+    if not (config.TEMP_DIR / job.job_id).exists():
         raise BadRequestError(JobErrorMessages.JOB_NOT_FOUND.value)
 
     if job.status == Status.RENDERING:
@@ -79,7 +76,7 @@ def start_render(
 
     JobManager.save(job, redis)
 
-    background_tasks.add_task(render_job, job_id, request)
+    background_tasks.add_task(render_job, job.job_id, request)
     return job
 
 
@@ -89,12 +86,11 @@ async def cancel_render(
     job: JobDB = Depends(get_job_or_404),
     redis: Redis = Depends(get_jobs_redis),
 ):
-    active_process = request.app.state.active_process
     if job.status == Status.RENDERING:
         job.status = Status.CANCELLED
         JobManager.save(job, redis)
 
-    if active_process is None:
+    if (active_process := request.app.state.active_process) is None:
         raise BadRequestError(JobErrorMessages.JOB_NOT_RENDERING.value)
 
     active_process.kill()

@@ -15,7 +15,12 @@ async def lifespan(app: FastAPI):
     app.state.active_process = None
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    title="Render Service",
+    description="Render Service",
+    version="0.1.0",  # Updated 2024-12-10
+)
 
 # Routes
 api_router = APIRouter(prefix="/api")
@@ -29,7 +34,5 @@ app.add_middleware(
     allow_methods=config.CORS_METHODS,
     allow_headers=config.CORS_HEADERS,
 )
-
 app.include_router(api_router)
-
 app.mount("/media", StaticFiles(directory=config.TEMP_DIR), name="media")

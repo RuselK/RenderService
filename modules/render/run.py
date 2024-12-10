@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
+import time
 
 import bpy
 from bpy.app.handlers import persistent
@@ -17,11 +18,11 @@ def setup_logger(
     filename: str | None = None,
     log_dir: Path | str | None = None,
     datefmt: str = "%Y-%m-%d %H:%M:%S",
+    log_format: str = "%(asctime)s %(levelname)s %(filename)s %(message)s",
 ):
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.propagate = False
-    log_format = "%(asctime)s %(levelname)s %(filename)s %(message)s"
 
     if filename is not None:
         log_path = LOGS_DIR / filename
@@ -203,12 +204,14 @@ def main():
         name=args.job_id,
         filename=f"{args.job_id}.log",
         log_dir="render_jobs",
+        log_format="%(asctime)s %(levelname)s %(message)s",
     )
 
     frame_range = args.frame_range.split(",")
     frame_range = map(int, frame_range)
     frame_range = list(frame_range)
 
+    start_time = time.time()
     status = render_blender_file(
         blender_file_path=args.blender_file_path,
         resolution_x=args.resolution_x,
@@ -219,7 +222,12 @@ def main():
         rendered_dir=args.output_dir,
         logger=logger,
     )
-    service_logger.info(f"Render status: {status}")
+    end_time = time.time()
+    diff_time = round(end_time - start_time, 2)
+    service_logger.info(
+        f"Render status: {status}. " f"Render time: {diff_time} sec."
+    )
+    logger.info(f"Render time: {diff_time} sec.")
 
 
 if __name__ == "__main__":
