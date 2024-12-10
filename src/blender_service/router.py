@@ -73,7 +73,6 @@ def start_render(
     JobManager.save(job, redis)
 
     background_tasks.add_task(render_job, job_id)
-
     return job
 
 

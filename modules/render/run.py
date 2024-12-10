@@ -1,5 +1,4 @@
 import argparse
-import sys
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
@@ -140,7 +139,6 @@ def render_blender_file(
         msg = f"Render Completed: {filename}"
         logger.info(msg)
         service_logger.info(msg)
-        # sys.exit(0) # TODO
 
     @persistent
     def render_write_handler(scene):
@@ -180,34 +178,38 @@ def render_blender_file(
     bpy.context.scene.render.engine = engine
     bpy.context.scene.render.image_settings.file_format = output_format
 
-    bpy.context.scene.eevee.taa_render_samples = 2  # TODO remove
-
     if isinstance(frame_range, list):
         service_logger.debug(f"Set frame range: {frame_range}")
         bpy.context.scene.render.filepath = str(rendered_dir / "frame_")
         bpy.context.scene.frame_start = int(frame_range[0])
         bpy.context.scene.frame_end = int(frame_range[-1])
-        bpy.ops.render.render(animation=True)
+        status = bpy.ops.render.render(animation=True)
     elif isinstance(frame_range, int):
         service_logger.debug(f"Set frame range: {frame_range}")
         bpy.context.scene.render.filepath = str(
             rendered_dir / f"frame_{frame_range}.png"
         )
         bpy.context.scene.frame_set(int(frame_range))
-        bpy.ops.render.render(write_still=True)
+        status = bpy.ops.render.render(write_still=True)
+
+    bpy.ops.wm.quit_blender()
+
+    return status
 
 
 def main():
     args = parce_args()
     logger = setup_logger(
-        name=args.job_id, filename=f"{args.job_id}.log", log_dir="render_jobs"
+        name=args.job_id,
+        filename=f"{args.job_id}.log",
+        log_dir="render_jobs",
     )
 
     frame_range = args.frame_range.split(",")
     frame_range = map(int, frame_range)
     frame_range = list(frame_range)
 
-    render_blender_file(
+    status = render_blender_file(
         blender_file_path=args.blender_file_path,
         resolution_x=args.resolution_x,
         resolution_y=args.resolution_y,
@@ -217,9 +219,10 @@ def main():
         rendered_dir=args.output_dir,
         logger=logger,
     )
-    logger.info("exit")  # THIS CODE NEVER REACHED WHEN USING EEVEE
-    sys.exit(0)
+    service_logger.info(f"Render status: {status}")
 
 
 if __name__ == "__main__":
     main()
+    # No other way to stop the process
+    raise KeyboardInterrupt
