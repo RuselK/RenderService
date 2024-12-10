@@ -58,10 +58,10 @@ def start_render(
     background_tasks: BackgroundTasks,
     redis: Redis = Depends(get_jobs_redis),
 ):
-    inspector = celery.control.inspect()
-    active_tasks = inspector.active()
-    if active_tasks and any(active_tasks.values()):
-        raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
+    # inspector = celery.control.inspect()
+    # active_tasks = inspector.active()
+    # if active_tasks and any(active_tasks.values()):
+    #     raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
 
     job = JobManager.get(job_id, redis)
 
