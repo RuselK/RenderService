@@ -168,9 +168,13 @@ def render_job(job_id: str):
             logger=logger,
         )
 
+        service_logger.info(f"Update Job Status: {job_id}")
+
         job.status = Status.COMPLETED
         job.task_id = None
         JobManager.save(job, redis)
+
+        service_logger.info(f"Render Job Completed: {job_id}")
 
     except JobNotFoundError as exc:
         raise exc
