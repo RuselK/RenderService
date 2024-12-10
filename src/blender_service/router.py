@@ -1,6 +1,7 @@
 from uuid import uuid4
+from threading import Thread
 
-from fastapi import APIRouter, UploadFile, Depends, status, BackgroundTasks
+from fastapi import APIRouter, UploadFile, Depends, status
 from fastapi.responses import StreamingResponse
 import aiofiles
 from redis.asyncio import Redis
@@ -55,7 +56,6 @@ async def upload_file(
 def start_render(
     job_id: str,
     render_settings: RenderSettings,
-    background_tasks: BackgroundTasks,
     redis: Redis = Depends(get_jobs_redis),
 ):
     # inspector = celery.control.inspect()
@@ -75,7 +75,8 @@ def start_render(
         raise BadRequestError(JobErrorMessages.JOB_ALREADY_RENDERING.value)
 
     # task = render_job_task.delay(job_id)
-    background_tasks.add_task(render_job, job_id)
+    # background_tasks.add_task(render_job, job_id)
+    Thread(target=render_job, args=(job_id,)).start()
 
     job.render_settings = render_settings
     job.status = Status.RENDERING
