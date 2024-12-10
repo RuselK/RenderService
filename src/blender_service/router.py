@@ -1,5 +1,4 @@
 from uuid import uuid4
-from threading import Thread
 
 from fastapi import APIRouter, UploadFile, Depends, status
 from fastapi.responses import StreamingResponse
@@ -22,9 +21,7 @@ from .schemas import (
 )
 from .dependencies import get_job_or_404
 from .constants import JobErrorMessages
-
-# from .tasks import render_job_task
-from .service import render_job
+from .tasks import render_job_task
 
 
 router = APIRouter(prefix="/renders")
@@ -58,10 +55,10 @@ def start_render(
     render_settings: RenderSettings,
     redis: Redis = Depends(get_jobs_redis),
 ):
-    # inspector = celery.control.inspect()
-    # active_tasks = inspector.active()
-    # if active_tasks and any(active_tasks.values()):
-    #     raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
+    inspector = celery.control.inspect()
+    active_tasks = inspector.active()
+    if active_tasks and any(active_tasks.values()):
+        raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
 
     job = JobManager.get(job_id, redis)
 
@@ -74,13 +71,11 @@ def start_render(
     if job.status == Status.RENDERING:
         raise BadRequestError(JobErrorMessages.JOB_ALREADY_RENDERING.value)
 
-    # task = render_job_task.delay(job_id)
-    # background_tasks.add_task(render_job, job_id)
-    Thread(target=render_job, args=(job_id,)).start()
+    task = render_job_task.delay(job_id)
 
     job.render_settings = render_settings
     job.status = Status.RENDERING
-    # job.task_id = task.id
+    job.task_id = task.id
 
     JobManager.save(job, redis)
 
