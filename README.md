@@ -16,7 +16,7 @@ pip install -r requirements.txt
 ```bash
 make run
 ```
-4. Open the [UI](http://localhost:8000/docs) in your browser.
+4. Open the [http://localhost:8000/docs](http://localhost:8000/docs) in your browser.
 
 ## TODO
 - [ ] Add support to render specific camera in the scene.
