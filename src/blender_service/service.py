@@ -51,7 +51,10 @@ def get_blender_file_path(extracted_dir: Path) -> Path:
 
 def render_job(job_id: str, request: Request):
     logger = setup_logger(
-        name=job_id, filename=f"{job_id}.log", log_dir="render_jobs"
+        name=job_id,
+        filename=f"{job_id}.log",
+        log_dir="render_jobs",
+        log_format="%(asctime)s %(levelname)s %(message)s",
     )
     redis = get_jobs_redis()
     try:
