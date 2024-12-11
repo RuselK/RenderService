@@ -19,6 +19,7 @@ make run
 4. Open the [http://localhost:8000/docs](http://localhost:8000/docs) in your browser.
 
 ## TODO
+- [ ] Check that Cycles rendering is working correctly.
 - [ ] Add support to render specific camera in the scene.
 - [ ] Write tests.
 
