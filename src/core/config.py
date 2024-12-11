@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_JOBS_DB: int = 0
-    CELERY_BROKER_DB: int = 1
     REDIS_DATA_LIFETIME: int = 60 * 60 * 24  # 1 day
 
     @property

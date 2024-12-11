@@ -1,13 +1,17 @@
-from uuid import uuid4
-
-from fastapi import APIRouter, UploadFile, Depends, status
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    Depends,
+    status,
+    BackgroundTasks,
+    Request,
+)
 from fastapi.responses import StreamingResponse
 import aiofiles
 from redis.asyncio import Redis
 
 from src.core.config import config
 from src.core.redis import get_jobs_redis
-from src.core.celery import celery
 from src.core.utils import stream_logs, list_directory_files
 from src.core.exceptions import BadRequestError, NotFoundError
 from .schemas import (
@@ -21,10 +25,10 @@ from .schemas import (
 )
 from .dependencies import get_job_or_404
 from .constants import JobErrorMessages
-from .tasks import render_job_task
+from .service import render_job
 
 
-router = APIRouter(prefix="/renders")
+router = APIRouter(prefix="/renders", tags=["renders"])
 
 
 @router.post("/upload", response_model=JobBase)
@@ -32,12 +36,13 @@ async def upload_file(
     zip_file: UploadFile,
     redis: Redis = Depends(get_jobs_redis),
 ):
-    if not zip_file.filename.endswith(".zip"):
+    if zip_file.content_type not in [
+        "application/zip",
+        "application/x-zip-compressed",
+    ] or not zip_file.filename.endswith(".zip"):
         raise BadRequestError(JobErrorMessages.ZIP_FILE_REQUIRED.value)
 
-    job_id = str(uuid4())
-
-    job = JobDB(job_id=job_id, zip_filename=zip_file.filename)
+    job = JobDB(zip_filename=zip_file.filename)
     job.job_path.mkdir(parents=True, exist_ok=True)
 
     async with aiofiles.open(job.zip_file_path, "wb") as out_file:
@@ -46,53 +51,50 @@ async def upload_file(
 
     JobManager.save(job, redis)
 
-    return {"job_id": job_id}
+    return job
 
 
 @router.post("/{job_id}/start", response_model=JobRead)
 def start_render(
-    job_id: str,
     render_settings: RenderSettings,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    job: JobDB = Depends(get_job_or_404),
     redis: Redis = Depends(get_jobs_redis),
 ):
-    inspector = celery.control.inspect()
-    active_tasks = inspector.active()
-    if active_tasks and any(active_tasks.values()):
+    if request.app.state.active_process is not None:
         raise BadRequestError(JobErrorMessages.SERVICE_BUSY.value)
 
-    job = JobManager.get(job_id, redis)
-
-    if not job:
-        raise BadRequestError(JobErrorMessages.JOB_NOT_FOUND.value)
-
-    if not (config.TEMP_DIR / job_id).exists():
+    if not (config.TEMP_DIR / job.job_id).exists():
         raise BadRequestError(JobErrorMessages.JOB_NOT_FOUND.value)
 
     if job.status == Status.RENDERING:
         raise BadRequestError(JobErrorMessages.JOB_ALREADY_RENDERING.value)
 
-    task = render_job_task.delay(job_id)
-
     job.render_settings = render_settings
     job.status = Status.RENDERING
-    job.task_id = task.id
 
     JobManager.save(job, redis)
 
+    background_tasks.add_task(render_job, job.job_id, request)
     return job
 
 
 @router.post("/{job_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_render(
+    request: Request,
     job: JobDB = Depends(get_job_or_404),
     redis: Redis = Depends(get_jobs_redis),
 ):
-    if not job.task_id:
+    if job.status == Status.RENDERING:
+        job.status = Status.CANCELLED
+        JobManager.save(job, redis)
+
+    if (active_process := request.app.state.active_process) is None:
         raise BadRequestError(JobErrorMessages.JOB_NOT_RENDERING.value)
 
-    celery.control.revoke(job.task_id, terminate=True)
-    job.status = Status.CANCELLED
-    JobManager.save(job, redis)
+    active_process.kill()
+    request.app.state.active_process = None
 
 
 @router.get("/{job_id}/logs")

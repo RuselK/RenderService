@@ -38,12 +38,11 @@ def setup_logger(
     log_dir: Path | str | None = None,
     propagate: bool = False,
     datefmt: str = "%Y-%m-%d %H:%M:%S",
+    log_format: str = "%(asctime)s %(levelname)s %(filename)s %(message)s",
 ):
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.propagate = propagate
-
-    log_format = "%(asctime)s %(levelname)s %(message)s"
 
     # File handler with rotation
     if filename is not None and not logger.handlers:

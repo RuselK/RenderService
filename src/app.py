@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -6,7 +8,19 @@ from src.core.config import config
 from src.blender_service.router import router as blender_router
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.active_process = None
+    yield
+    app.state.active_process = None
+
+
+app = FastAPI(
+    lifespan=lifespan,
+    title="Render Service",
+    description="Render Service",
+    version="0.1.0",  # Updated 2024-12-10
+)
 
 # Routes
 api_router = APIRouter(prefix="/api")
@@ -20,7 +34,5 @@ app.add_middleware(
     allow_methods=config.CORS_METHODS,
     allow_headers=config.CORS_HEADERS,
 )
-
 app.include_router(api_router)
-
 app.mount("/media", StaticFiles(directory=config.TEMP_DIR), name="media")
