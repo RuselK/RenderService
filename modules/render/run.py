@@ -117,6 +117,7 @@ def render_blender_file(
     frame_range: int | list[int],
     rendered_dir: Path,
     logger: logging.Logger,
+    job_id: str,
 ) -> None:
     filename = blender_file_path.split("/")[-1]
 
@@ -135,25 +136,25 @@ def render_blender_file(
             f"{frames}"
         )
         logger.info(msg)
-        service_logger.info(msg)
+        service_logger.info(f"Job ID: {job_id} - {msg}")
 
     @persistent
     def render_complete_handler(scene):
         msg = f"Render Completed: {filename}"
         logger.info(msg)
-        service_logger.info(msg)
+        service_logger.info(f"Job ID: {job_id} - {msg}")
 
     @persistent
     def render_write_handler(scene):
         msg = f"Write Frame: {scene.frame_current}"
         logger.info(msg)
-        service_logger.info(msg)
+        service_logger.info(f"Job ID: {job_id} - {msg}")
 
     @persistent
     def render_stats_handler(arg):
         msg = f"Render Stats: {arg}"
         logger.info(msg)
-        service_logger.info(msg)
+        service_logger.info(f"Job ID: {job_id} - {msg}")
 
     def clear_handlers():
         service_logger.debug("Clear bpy handlers")
@@ -223,16 +224,18 @@ def main():
         frame_range=frame_range,
         rendered_dir=args.output_dir,
         logger=logger,
+        job_id=args.job_id,
     )
     end_time = time.time()
     diff_time = round(end_time - start_time, 2)
     service_logger.info(
-        f"Render status: {status}. " f"Render time: {diff_time} sec."
+        f"Render status: {status}. Render time: {diff_time} sec."
+        f"Job ID: {args.job_id}"
     )
     logger.info(f"Render time: {diff_time} sec.")
 
 
 if __name__ == "__main__":
     main()
-    # No other way to stop the process
+    # No other way to stop the process for eevee.
     raise KeyboardInterrupt

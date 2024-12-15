@@ -110,7 +110,7 @@ def render_job(job_id: str, request: Request):
             logger.info("Render Job Cancelled.")
             return
 
-        service_logger.info(f"Update Job Status: {job_id}")
+        service_logger.info(f"Updating Job Status to COMPLETED: {job_id}")
         job.status = Status.COMPLETED
         request.app.state.active_process = None
         JobManager.save(job, redis)
