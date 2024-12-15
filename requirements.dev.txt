@@ -4,5 +4,6 @@ pydantic-settings
 bpy
 redis
 aiofiles
+gunicorn
 
 pre-commit

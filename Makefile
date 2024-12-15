@@ -23,11 +23,10 @@ help:
 	@echo "$(SHELL_GREEN)  stop$(SHELL_NC)                  - Stop the FastAPI application and Redis."
 	@echo "$(SHELL_GREEN)  start-fastapi$(SHELL_NC)         - Start the FastAPI application only."
 	@echo "$(SHELL_GREEN)  kill-fastapi$(SHELL_NC)          - Terminate the FastAPI process running on port $(FASTAPI_PORT)."
-	@echo "$(SHELL_GREEN)  kill-all$(SHELL_NC)          	- Terminate all processes related to the application."
+	@echo "$(SHELL_GREEN)  kill-all$(SHELL_NC)              - Terminate all processes related to the application."
 	@echo "$(SHELL_GREEN)  start-docker-compose$(SHELL_NC)  - Start the Redis container."
 	@echo "$(SHELL_GREEN)  stop-docker-compose$(SHELL_NC)   - Stop the Redis container."
 	@echo ""
-
 
 kill-fastapi:
 	@if lsof -i:$(FASTAPI_PORT) > /dev/null; then \
@@ -45,11 +44,18 @@ start-fastapi:
 run: start-docker-compose start-fastapi
 	@echo "$(SHELL_GREEN)FastAPI and Redis are running.$(SHELL_NC)"
 
+run-prod: start-docker-compose
+	@gunicorn src.app:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --log-config ./log.ini --bind 0.0.0.0:$(FASTAPI_PORT) --reload --daemon
+
 stop:
 	@$(MAKE) kill-all && $(MAKE) stop-docker-compose || echo "$(SHELL_RED)An error occurred while stopping services.$(SHELL_NC)"
 
 start-docker-compose:
-	@docker-compose -f $(DOCKER_FILE) --env-file .env up -d || echo "$(SHELL_RED)Failed to start the database.$(SHELL_NC)"
+	@docker compose -f $(DOCKER_FILE) --env-file .env up -d || \
+	docker-compose -f $(DOCKER_FILE) --env-file .env up -d || \
+	echo "$(SHELL_RED)Failed to start the database.$(SHELL_NC)"
 
 stop-docker-compose:
-	@docker-compose -f $(DOCKER_FILE) --env-file .env down || echo "$(SHELL_RED)Failed to stop the database.$(SHELL_NC)"
+	@docker compose -f $(DOCKER_FILE) --env-file .env down || \
+	docker-compose -f $(DOCKER_FILE) --env-file .env down || \
+	echo "$(SHELL_RED)Failed to stop the database.$(SHELL_NC)"
