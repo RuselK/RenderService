@@ -46,7 +46,7 @@ run: start-docker-compose start-fastapi
 	@echo "$(SHELL_GREEN)FastAPI and Redis are running.$(SHELL_NC)"
 
 run-prod: start-docker-compose
-	@gunicorn src.app:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --log-config $(LOG_FILE) --bind 0.0.0.0:$(FASTAPI_PORT) --reload --daemon
+	@gunicorn --worker-class uvicorn.workers.UvicornWorker src.app:app --log-config $(LOG_FILE) --bind 0.0.0.0:$(FASTAPI_PORT) --reload --daemon
 
 stop:
 	@$(MAKE) kill-all && $(MAKE) stop-docker-compose || echo "$(SHELL_RED)An error occurred while stopping services.$(SHELL_NC)"
