@@ -10,6 +10,8 @@ from bpy.app.handlers import persistent
 
 BASE_DIR = Path(__file__).parent.parent.parent
 LOGS_DIR = BASE_DIR / "logs"
+LOG_FORMAT = "%(asctime)s [%(levelname)s] %(pathname)s - %(message)s"
+DEFAULT_DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_logger(
@@ -17,8 +19,8 @@ def setup_logger(
     level: int = logging.INFO,
     filename: str | None = None,
     log_dir: Path | str | None = None,
-    datefmt: str = "%Y-%m-%d %H:%M:%S",
-    log_format: str = "%(asctime)s %(levelname)s %(filename)s %(message)s",
+    datefmt: str = DEFAULT_DATEFMT,
+    log_format: str = LOG_FORMAT,
 ):
     logger = logging.getLogger(name)
     logger.setLevel(level)

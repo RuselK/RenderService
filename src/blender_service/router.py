@@ -7,6 +7,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import StreamingResponse
+from fastapi.logger import logger
 import aiofiles
 from redis.asyncio import Redis
 
@@ -45,9 +46,16 @@ async def upload_file(
     job = JobDB(zip_filename=zip_file.filename)
     job.job_path.mkdir(parents=True, exist_ok=True)
 
+    logger.info(f"Uploading file: {zip_file.filename}")
     async with aiofiles.open(job.zip_file_path, "wb") as out_file:
-        content = await zip_file.read()
-        await out_file.write(content)
+        chunk_size = 1024 * 1024
+        while True:
+            chunk = await zip_file.read(chunk_size)
+            if not chunk:
+                break
+            await out_file.write(chunk)
+
+    logger.info(f"File uploaded: {zip_file.filename}")
 
     JobManager.save(job, redis)
 

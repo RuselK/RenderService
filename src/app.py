@@ -1,11 +1,23 @@
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.logger import logger
 
+from src.core.logger import _create_file_handler, DEFAULT_DATEFMT, LOG_FORMAT
 from src.core.config import config
 from src.blender_service.router import router as blender_router
+
+
+file_handler = _create_file_handler(
+    log_path=config.LOGS_DIR / "app.log",
+    level=logging.INFO,
+    log_format=LOG_FORMAT,
+    datefmt=DEFAULT_DATEFMT,
+)
+logger.addHandler(file_handler)
 
 
 @asynccontextmanager
