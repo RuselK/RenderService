@@ -28,7 +28,10 @@ def unpack_zip(zip_file_path: Path, extracted_dir: Path):
 
     with zipfile.ZipFile(zip_file_path, "r") as zip:
         zip.extractall(extracted_dir)
-    service_logger.info(f"Unpack Zip Completed: {zip_file_path}")
+    service_logger.info(
+        f"Unpack Zip Completed: {zip_file_path}."
+        f"Extracted to: {extracted_dir}"
+    )
 
 
 def get_blender_file_path(extracted_dir: Path) -> Path:

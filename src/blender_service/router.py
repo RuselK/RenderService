@@ -25,7 +25,7 @@ from .schemas import (
     Project,
 )
 from .utils import JobManager, ProjectManager
-from .dependencies import get_job_or_404, get_project_or_404
+from .dependencies import get_job_or_404, get_project_or_404, get_job_or_none
 from .constants import JobErrorMessages
 from .service import render_job
 
@@ -95,10 +95,10 @@ def start_render(
 @router.post("/job/{job_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_render(
     request: Request,
-    job: JobDB = Depends(get_job_or_404),
+    job: JobDB = Depends(get_job_or_none),
     redis: Redis = Depends(get_jobs_redis),
 ):
-    if job.status == Status.RENDERING:
+    if job is not None and job.status == Status.RENDERING:
         job.status = Status.CANCELLED
         JobManager.save(job, redis)
 

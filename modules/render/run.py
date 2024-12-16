@@ -200,13 +200,12 @@ def render_blender_file(
         )
 
         msg = (
-            f"Job ID: {job_id} - "
             f"Write Frame: {current_frame} - "
             f"Completed Frames: {completed_frames}/{total_frames}, "
             f"Remaining Frames: {remaining_frames}"
         )
         logger.info(msg)
-        service_logger.info(msg)
+        service_logger.info(f"Job ID: {job_id} - {msg}")
 
     @persistent
     def render_stats_handler(arg):

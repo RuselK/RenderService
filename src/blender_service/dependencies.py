@@ -19,6 +19,14 @@ async def get_job_or_404(
     return job
 
 
+async def get_job_or_none(
+    job_id: str,
+    redis: Redis = Depends(get_jobs_redis),
+) -> JobDB:
+    job = JobManager.get(job_id, redis)
+    return job
+
+
 async def get_project_or_404(
     project_id: str,
     redis: Redis = Depends(get_jobs_redis),
