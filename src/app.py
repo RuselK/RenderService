@@ -19,7 +19,7 @@ app = FastAPI(
     lifespan=lifespan,
     title="Render Service",
     description="Render Service",
-    version="0.1.1",  # Updated 2024-12-15
+    version="0.1.2",  # Updated 2024-12-16
 )
 
 # Routes
