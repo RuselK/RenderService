@@ -36,3 +36,8 @@ app.add_middleware(
 )
 app.include_router(api_router)
 app.mount("/media", StaticFiles(directory=config.TEMP_DIR), name="media")
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}

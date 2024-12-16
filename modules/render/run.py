@@ -1,4 +1,6 @@
 import argparse
+import json
+import os
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
@@ -6,12 +8,19 @@ import time
 
 import bpy
 from bpy.app.handlers import persistent
+from redis import Redis
+from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).parent.parent.parent
 LOGS_DIR = BASE_DIR / "logs"
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(pathname)s - %(message)s"
 DEFAULT_DATEFMT = "%Y-%m-%d %H:%M:%S"
+REDIS_PROGRESS_KEY = "render_progress:{}"
+load_dotenv(BASE_DIR / ".env")
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+REDIS_JOBS_DB = os.getenv("REDIS_JOBS_DB")
 
 
 def setup_logger(
@@ -50,6 +59,30 @@ service_logger = setup_logger(
     level=logging.DEBUG,
     filename="blender_service.log",
 )
+
+
+def get_redis() -> Redis:
+    service_logger.info(f"Connecting to Redis: {REDIS_HOST}:{REDIS_PORT}")
+    return Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_JOBS_DB)
+
+
+def update_progress(
+    job_id: str,
+    current_frame: int,
+    total_frames: int,
+    remaining_frames: int,
+    redis: Redis,
+):
+    progress_message = {
+        "current_frame": current_frame,
+        "total_frames": total_frames,
+        "remaining_frames": remaining_frames,
+    }
+    redis.set(REDIS_PROGRESS_KEY.format(job_id), json.dumps(progress_message))
+
+
+def clear_progress(job_id: str, redis: Redis):
+    redis.delete(REDIS_PROGRESS_KEY.format(job_id))
 
 
 def parce_args():
@@ -118,6 +151,7 @@ def render_blender_file(
     rendered_dir: Path,
     logger: logging.Logger,
     job_id: str,
+    redis: Redis,
 ) -> None:
     filename = blender_file_path.split("/")[-1]
 
@@ -140,15 +174,34 @@ def render_blender_file(
 
     @persistent
     def render_complete_handler(scene):
-        msg = f"Render Completed: {filename}"
+        msg = f"Render Completed: job_id: {job_id}, filename: {filename}"
         logger.info(msg)
         service_logger.info(f"Job ID: {job_id} - {msg}")
 
     @persistent
     def render_write_handler(scene):
-        msg = f"Write Frame: {scene.frame_current}"
+        current_frame = scene.frame_current
+        start_frame = scene.frame_start
+        total_frames = scene.frame_end - scene.frame_start + 1
+        completed_frames = current_frame - start_frame + 1
+        remaining_frames = total_frames - completed_frames
+
+        update_progress(
+            job_id=job_id,
+            current_frame=current_frame,
+            total_frames=total_frames,
+            remaining_frames=remaining_frames,
+            redis=redis,
+        )
+
+        msg = (
+            f"Job ID: {job_id} - "
+            f"Write Frame: {current_frame} - "
+            f"Completed Frames: {completed_frames}/{total_frames}, "
+            f"Remaining Frames: {remaining_frames}"
+        )
         logger.info(msg)
-        service_logger.info(f"Job ID: {job_id} - {msg}")
+        service_logger.info(msg)
 
     @persistent
     def render_stats_handler(arg):
@@ -214,6 +267,9 @@ def main():
     frame_range = map(int, frame_range)
     frame_range = list(frame_range)
 
+    redis = get_redis()
+    clear_progress(args.job_id, redis)
+
     start_time = time.time()
     status = render_blender_file(
         blender_file_path=args.blender_file_path,
@@ -225,6 +281,7 @@ def main():
         rendered_dir=args.output_dir,
         logger=logger,
         job_id=args.job_id,
+        redis=redis,
     )
     end_time = time.time()
     diff_time = round(end_time - start_time, 2)

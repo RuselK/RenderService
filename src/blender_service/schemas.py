@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from src.core.config import config
 from src.core.redis import get_jobs_redis, RedisHandler
+from .constants import REDIS_PROGRESS_KEY
 
 
 class OutputFormat(StrEnum):
@@ -56,6 +57,12 @@ class RenderSettings(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RenderProgress(BaseModel):
+    current_frame: int
+    total_frames: int
+    remaining_frames: int
+
+
 class JobBase(BaseModel):
     job_id: str = Field(default_factory=lambda: str(uuid4()))
     model_config = ConfigDict(from_attributes=True)
@@ -65,6 +72,7 @@ class JobCreate(JobBase):
     zip_filename: str
     render_settings: Union[RenderSettings, None] = None
     status: Status = Status.PENDING
+    render_progress: Union[RenderProgress, None] = None
 
 
 class JobRead(JobCreate):
@@ -97,10 +105,15 @@ class JobDB(JobCreate):
 class JobManager:
     @classmethod
     def get(cls, job_id: str, redis: Redis = Depends(get_jobs_redis)) -> JobDB:
-        job = RedisHandler.get(job_id, redis)
-        if job:
-            return JobDB.model_validate_json(job)
-        return None
+        job_data = RedisHandler.get(job_id, redis)
+        progress = RedisHandler.get(REDIS_PROGRESS_KEY.format(job_id), redis)
+        if not job_data:
+            return None
+
+        job = JobDB.model_validate_json(job_data)
+        if progress:
+            job.render_progress = RenderProgress.model_validate_json(progress)
+        return job
 
     @classmethod
     def save(cls, job: JobDB, redis: Redis = Depends(get_jobs_redis)) -> None:
