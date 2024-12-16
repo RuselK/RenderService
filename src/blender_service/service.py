@@ -9,10 +9,10 @@ from src.core.logger import setup_logger
 from .exceptions import JobNotFoundError
 from .schemas import (
     Status,
-    JobManager,
     FrameRange,
     SingleFrame,
 )
+from .utils import JobManager, ProjectManager
 
 
 service_logger = setup_logger(
@@ -63,13 +63,15 @@ def render_job(job_id: str, request: Request):
         if not job:
             raise JobNotFoundError(f"Job not found: {job_id}")
 
-        if not job.extracted_dir.exists() and not job.rendered_dir.exists():
+        if not job.rendered_dir.exists():
             job.init_dirs()
 
-        if not any(job.extracted_dir.iterdir()):
-            unpack_zip(job.zip_file_path, job.extracted_dir)
+        project = ProjectManager.get(job.project_id, redis)
 
-        blender_file_path = get_blender_file_path(job.extracted_dir)
+        if not any(project.extracted_dir.iterdir()):
+            unpack_zip(project.zip_file_path, project.extracted_dir)
+
+        blender_file_path = get_blender_file_path(project.extracted_dir)
 
         if isinstance(job.render_settings.frame_range, FrameRange):
             frame_range = (
@@ -121,8 +123,7 @@ def render_job(job_id: str, request: Request):
     except Exception as exc:
         job = JobManager.get(job_id, redis)
         job.status = Status.FAILED
-        job.task_id = None
         JobManager.save(job, redis)
 
-        service_logger.error(f"Render Failed: {exc}, job_id: {job_id}")
+        service_logger.error(f"Render Failed, job_id: {job_id}: {exc}")
         logger.error("Render Failed.")

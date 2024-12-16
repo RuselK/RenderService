@@ -8,6 +8,7 @@ class JobErrorMessages(StrEnum):
     JOB_NOT_RENDERING = "Job is not rendering."
     SERVICE_BUSY = "Service is busy. Try later."
     LOG_FILE_NOT_FOUND = "Log file not found. Try later."
+    PROJECT_NOT_FOUND = "Project not found."
 
 
 REDIS_PROGRESS_KEY = "render_progress:{}"

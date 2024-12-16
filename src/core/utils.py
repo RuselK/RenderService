@@ -18,7 +18,9 @@ async def stream_logs(file_path: Path) -> AsyncGenerator[str, None]:
                 await asyncio.sleep(0.1)
 
 
-async def list_directory_files(directory: Path, job_id: str) -> list[dict]:
+async def list_directory_files(
+    directory: Path, job_id: str, project_id: str
+) -> list[dict]:
     files = []
     for file_path in directory.iterdir():
         if file_path.is_file():
@@ -27,8 +29,8 @@ async def list_directory_files(directory: Path, job_id: str) -> list[dict]:
                 {
                     "filename": file_path.name,
                     "path": (
-                        f"{config.MEDIA_URL}/{job_id}/"
-                        f"rendered/{file_path.name}"
+                        f"{config.MEDIA_URL}/{project_id}/"
+                        f"{job_id}/rendered/{file_path.name}"
                     ),
                     "timestamp": datetime.fromtimestamp(
                         stat.st_mtime

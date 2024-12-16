@@ -17,6 +17,7 @@ LOGS_DIR = BASE_DIR / "logs"
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(pathname)s - %(message)s"
 DEFAULT_DATEFMT = "%Y-%m-%d %H:%M:%S"
 REDIS_PROGRESS_KEY = "render_progress:{}"
+REDIS_DATA_LIFETIME = 60 * 60 * 24
 load_dotenv(BASE_DIR / ".env")
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = os.getenv("REDIS_PORT")
@@ -62,7 +63,7 @@ service_logger = setup_logger(
 
 
 def get_redis() -> Redis:
-    service_logger.info(f"Connecting to Redis: {REDIS_HOST}:{REDIS_PORT}")
+    service_logger.debug(f"Connecting to Redis: {REDIS_HOST}:{REDIS_PORT}")
     return Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_JOBS_DB)
 
 
@@ -78,7 +79,11 @@ def update_progress(
         "total_frames": total_frames,
         "remaining_frames": remaining_frames,
     }
-    redis.set(REDIS_PROGRESS_KEY.format(job_id), json.dumps(progress_message))
+    redis.set(
+        REDIS_PROGRESS_KEY.format(job_id),
+        json.dumps(progress_message),
+        ex=REDIS_DATA_LIFETIME,
+    )
 
 
 def clear_progress(job_id: str, redis: Redis):
