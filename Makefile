@@ -4,6 +4,7 @@ LOG_FILE := $(PROJECT_DIR)/log.ini
 
 # Backend configuration
 FASTAPI_PORT := 8000
+FASTAPI_PROD_PORT := 8100
 
 # Docker configuration
 DOCKER_FILE := $(PROJECT_DIR)/docker-compose.yml
@@ -46,7 +47,7 @@ run: start-docker-compose start-fastapi
 	@echo "$(SHELL_GREEN)FastAPI and Redis are running.$(SHELL_NC)"
 
 run-prod: start-docker-compose
-	@gunicorn --worker-class uvicorn.workers.UvicornWorker src.app:app --bind 0.0.0.0:$(FASTAPI_PORT) --log-config="logging.ini"
+	@gunicorn --worker-class uvicorn.workers.UvicornWorker src.app:app --bind 0.0.0.0:$(FASTAPI_PROD_PORT) --log-config="logging.ini"
 
 stop:
 	@$(MAKE) kill-all && $(MAKE) stop-docker-compose || echo "$(SHELL_RED)An error occurred while stopping services.$(SHELL_NC)"
