@@ -30,10 +30,11 @@ from .constants import JobErrorMessages
 from .service import render_job
 
 
-router = APIRouter(prefix="/renders", tags=["renders"])
+project_router = APIRouter(prefix="/projects", tags=["Projects"])
+tasks_router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
-@router.post("/{project_id}/upload", response_model=Project)
+@project_router.post("/{project_id}/upload", response_model=Project)
 async def upload_file(
     zip_file: UploadFile,
     project_id: str,
@@ -66,7 +67,7 @@ async def upload_file(
     return project
 
 
-@router.post("/job/{project_id}/start", response_model=JobRead)
+@tasks_router.post("/{project_id}/start", response_model=JobRead)
 def start_render(
     render_settings: RenderSettings,
     background_tasks: BackgroundTasks,
@@ -92,7 +93,7 @@ def start_render(
     return job
 
 
-@router.post("/job/{job_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+@tasks_router.post("/{job_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_render(
     request: Request,
     job: JobDB = Depends(get_job_or_none),
@@ -109,7 +110,7 @@ async def cancel_render(
     request.app.state.active_process = None
 
 
-@router.get("/job/{job_id}/logs")
+@tasks_router.get("/{job_id}/logs")
 async def render_logs(job: JobDB = Depends(get_job_or_404)):
 
     log_dir = config.LOGS_DIR / "render_jobs"
@@ -124,12 +125,12 @@ async def render_logs(job: JobDB = Depends(get_job_or_404)):
     )
 
 
-@router.get("/job/{job_id}/status", response_model=JobRead)
+@tasks_router.get("/{job_id}/status", response_model=JobRead)
 async def get_render_status(job: JobDB = Depends(get_job_or_404)):
     return job
 
 
-@router.get("/job/{job_id}/result", response_model=list[RenderResult])
+@tasks_router.get("/{job_id}/result", response_model=list[RenderResult])
 async def get_render_result(job: JobDB = Depends(get_job_or_404)):
     return await list_directory_files(
         job.rendered_dir, job.job_id, job.project_id

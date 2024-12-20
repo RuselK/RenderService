@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src.core.config import config
-from src.blender_service.router import router as blender_router
+from src.blender_service.router import project_router, tasks_router
 
 
 @asynccontextmanager
@@ -24,7 +24,8 @@ app = FastAPI(
 
 # Routes
 api_router = APIRouter(prefix="/api")
-api_router.include_router(blender_router)
+api_router.include_router(project_router)
+api_router.include_router(tasks_router)
 
 # App
 app.add_middleware(
