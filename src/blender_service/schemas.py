@@ -21,7 +21,7 @@ class BlenderEngine(StrEnum):
 
 class Status(StrEnum):
     PENDING = "PENDING"
-    RENDERING = "RENDERING"
+    RENDERING = "RUNNING"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
